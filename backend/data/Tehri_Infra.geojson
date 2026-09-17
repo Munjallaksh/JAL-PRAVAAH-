@@ -1,0 +1,124 @@
+{
+  "type": "FeatureCollection",
+  "name": "Tehri_Infra",
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road-nh34",
+        "name": "NH-34 Highway Corridor (Tehri - Rishikesh)",
+        "category": "road",
+        "importance": "PRIMARY_ARTERIAL",
+        "lanes": 2
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [78.4803, 30.3781],
+          [78.5100, 30.3400],
+          [78.5350, 30.2600],
+          [78.5700, 30.2100],
+          [78.6000, 30.1450],
+          [78.4900, 30.1200],
+          [78.3500, 30.1300],
+          [78.2700, 30.0880],
+          [78.1650, 29.9460]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bridge-ram-jhula",
+        "name": "Ram Jhula Suspension Bridge",
+        "category": "bridge",
+        "type": "Suspension",
+        "district": "Tehri / Pauri Garhwal",
+        "elevation_m": 348.0
+      },
+      "geometry": { "type": "Point", "coordinates": [78.3140, 30.1220] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bridge-lakshman-jhula",
+        "name": "Lakshman Jhula Bridge",
+        "category": "bridge",
+        "type": "Suspension Bridge",
+        "district": "Tehri Garhwal",
+        "elevation_m": 355.0
+      },
+      "geometry": { "type": "Point", "coordinates": [78.3260, 30.1280] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bridge-devprayag",
+        "name": "Devprayag Confluence Highway Bridge",
+        "category": "bridge",
+        "type": "Steel Arch",
+        "district": "Tehri Garhwal",
+        "elevation_m": 482.0
+      },
+      "geometry": { "type": "Point", "coordinates": [78.5990, 30.1480] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "hosp-aiims-rishikesh",
+        "name": "AIIMS Rishikesh Tertiary Care Hospital",
+        "category": "hospital",
+        "beds": 960,
+        "icu_capacity": 120,
+        "elevation_m": 345.0
+      },
+      "geometry": { "type": "Point", "coordinates": [78.2880, 30.0780] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "hosp-district-tehri",
+        "name": "District Hospital Tehri Garhwal",
+        "category": "hospital",
+        "beds": 150,
+        "icu_capacity": 15,
+        "elevation_m": 610.0
+      },
+      "geometry": { "type": "Point", "coordinates": [78.4750, 30.3850] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "shelter-rishikesh-stadium",
+        "name": "Rishikesh Disaster Relief & Relief Shelter A",
+        "category": "shelter",
+        "capacity_persons": 4500,
+        "elevation_m": 358.0
+      },
+      "geometry": { "type": "Point", "coordinates": [78.2720, 30.0950] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "shelter-haridwar-inter-college",
+        "name": "Haridwar High School Relief Shelter B",
+        "category": "shelter",
+        "capacity_persons": 6000,
+        "elevation_m": 305.0
+      },
+      "geometry": { "type": "Point", "coordinates": [78.1580, 29.9520] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "power-tehri-hpp",
+        "name": "Tehri Hydro Power Plant (1000MW)",
+        "category": "power_station",
+        "type": "Hydroelectric Powerhouse",
+        "elevation_m": 585.0
+      },
+      "geometry": { "type": "Point", "coordinates": [78.4820, 30.3750] }
+    }
+  ]
+}
