@@ -58,17 +58,36 @@ def generate_pdf_report(results: dict, output_pdf_path: str) -> str:
     story = []
 
     # Title Banner
-    story.append(Paragraph("JAL PRAVAAH - DECISION-SUPPORT REPORT", title_style))
+    story.append(Paragraph("JAL PRAVAAH — FLOOD INTELLIGENCE & DECISION REPORT", title_style))
     story.append(Spacer(1, 4))
-    dam_name = results.get("max_inundation", {}).get("features", [{}])[0].get("properties", {}).get("dam_name") or results.get("dam_name") or "Selected Dam"
-    river_name = results.get("max_inundation", {}).get("features", [{}])[0].get("properties", {}).get("river_name") or results.get("river_name") or "Downstream River Reach"
-    story.append(Paragraph(f"Scenario ID: <b>{results.get('job_id', 'SCN-2026-00001')}</b> | Engine: <b>{results.get('engine', 'SPH')}</b> | Domain: <b>{dam_name} ({river_name})</b>", subtitle_style))
+    
+    dam_name = (
+        results.get("dam_name") 
+        or results.get("max_inundation", {}).get("features", [{}])[0].get("properties", {}).get("dam_name") 
+        or "Selected Dam"
+    )
+    river_name = (
+        results.get("river_name") 
+        or results.get("max_inundation", {}).get("features", [{}])[0].get("properties", {}).get("river_name") 
+        or "Downstream River Reach"
+    )
+    scenario_type = str(results.get("scenario_type") or "DAM_BREAK").replace("_", " ").title()
+
+    story.append(Paragraph(
+        f"<b>TARGET DAM:</b> <font color='#0284c7'>{dam_name}</font> &nbsp;|&nbsp; <b>RIVER BASIN / REACH:</b> <font color='#0284c7'>{river_name}</font>", 
+        subtitle_style
+    ))
+    story.append(Spacer(1, 3))
+    story.append(Paragraph(
+        f"<b>Scenario Type:</b> {scenario_type} &nbsp;|&nbsp; <b>Scenario ID:</b> <b>{results.get('job_id', 'SCN-2026-00001')}</b> &nbsp;|&nbsp; <b>Engine:</b> <b>{results.get('engine', 'SPH')}</b>", 
+        subtitle_style
+    ))
     story.append(Spacer(1, 8))
     story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#0ea5e9'), spaceBefore=4, spaceAfter=12))
 
     # Executive Summary Metrics Table
     impact = results.get("impact_summary", {})
-    story.append(Paragraph("1. Executive Summary & Impact Key Metrics", heading_style))
+    story.append(Paragraph(f"1. Executive Summary & Impact Key Metrics ({dam_name})", heading_style))
 
     metrics_data = [
         ["Metric Indicator", "Value", "Metric Indicator", "Value"],
@@ -93,7 +112,7 @@ def generate_pdf_report(results: dict, output_pdf_path: str) -> str:
     story.append(Spacer(1, 14))
 
     # HADR Emergency Priority Ranking
-    story.append(Paragraph("2. HADR Emergency Response Priority Ranking", heading_style))
+    story.append(Paragraph(f"2. HADR Emergency Response Priority Ranking ({river_name} Valley)", heading_style))
 
     hadr_list = results.get("hadr_priorities", [])[:6]
     hadr_table_data = [["Rank", "Settlement", "Priority", "Pop", "Arrival", "Max Depth", "Road Access"]]
@@ -125,9 +144,12 @@ def generate_pdf_report(results: dict, output_pdf_path: str) -> str:
     # Model Provenance & Data Confidence
     story.append(Paragraph("3. Scientific Provenance & Model Uncertainty", heading_style))
     provenance_text = (
-        f"<b>Model Engine:</b> {results.get('engine', 'SPH')}<br/>"
+        f"<b>Target Dam / Structure:</b> {dam_name}<br/>"
+        f"<b>Target River Basin / Reach:</b> {river_name}<br/>"
+        f"<b>Hydrodynamic Engine:</b> {results.get('engine', 'SPH')}<br/>"
         f"<b>Data Provenance Tag:</b> {results.get('provenance', 'SIMULATION OUTPUT')}<br/>"
         f"<b>DEM Terrain:</b> Copernicus 30m Global Elevation Dataset<br/>"
+        f"<b>Hydrological Inflow:</b> Outflow Hydrograph calculated specifically for {dam_name}<br/>"
         f"<b>Satellite Observation:</b> Sentinel-1 SAR C-band IW GRDH Change Detection<br/>"
     )
     story.append(Paragraph(provenance_text, body_style))

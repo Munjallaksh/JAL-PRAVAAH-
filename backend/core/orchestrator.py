@@ -28,7 +28,7 @@ class JobOrchestrator:
         job_id = f"SCN-{time.strftime('%Y%m%d')}-{str(uuid.uuid4())[:6].upper()}"
         
         # Dynamically generate GIS study domain for selected Dam / River
-        active_gis = generate_dynamic_domain_gis(dam_name=params.dam_name)
+        active_gis = generate_dynamic_domain_gis(dam_name=params.dam_name, river_name=params.river_name)
 
         self.jobs[job_id] = {
             "job_id": job_id,
@@ -88,6 +88,9 @@ class JobOrchestrator:
 
             job["results"] = {
                 "job_id": job_id,
+                "dam_name": params.dam_name,
+                "river_name": params.river_name,
+                "scenario_type": params.scenario_type,
                 "max_inundation": max_flood,
                 "temporal_snapshots": raw_results["temporal_snapshots"],
                 "peak_flow_cumecs": raw_results["peak_flow_cumecs"],

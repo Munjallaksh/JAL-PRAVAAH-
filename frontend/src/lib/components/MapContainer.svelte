@@ -42,7 +42,7 @@
   async function reloadDomainGIS() {
     if (!map || !$selectedLocation) return;
     try {
-      domainData = await fetchDomainGIS($selectedLocation.name || $selectedLocation.id);
+      domainData = await fetchDomainGIS($selectedLocation.name || $selectedLocation.id, $selectedLocation.river);
       addGISLayers();
     } catch (e) {
       console.error('Error loading GIS domain layers:', e);

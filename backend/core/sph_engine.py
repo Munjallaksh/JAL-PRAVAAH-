@@ -20,7 +20,7 @@ class SPHEngine(BaseSimulationEngine):
         return validate_simulation_inputs(params, dam_meta)
 
     def prepare_model(self, job_id: str, params: SimulationParameters, domain_data: Dict[str, Any]) -> Dict[str, Any]:
-        domain_gis = generate_dynamic_domain_gis(dam_name=params.dam_name)
+        domain_gis = generate_dynamic_domain_gis(dam_name=params.dam_name, river_name=params.river_name)
         num_particles = 12000
         smoothing_length_h = 25.0
         particle_mass_kg = 1000.0

@@ -6,8 +6,12 @@ export async function searchLocations(query: string) {
   return await res.json();
 }
 
-export async function fetchDomainGIS(domainId: string = 'tehri') {
-  const res = await fetch(`${API_BASE}/locations/domain/${domainId}`);
+export async function fetchDomainGIS(domainId: string = 'tehri', riverName?: string) {
+  let url = `${API_BASE}/locations/domain/${encodeURIComponent(domainId)}`;
+  if (riverName) {
+    url += `?river_name=${encodeURIComponent(riverName)}`;
+  }
+  const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch GIS layers');
   return await res.json();
 }

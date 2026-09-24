@@ -19,8 +19,7 @@ class DemoHydraulicEngine(BaseSimulationEngine):
         return validate_simulation_inputs(params, dam_meta)
 
     def prepare_model(self, job_id: str, params: SimulationParameters, domain_data: Dict[str, Any]) -> Dict[str, Any]:
-        dam_name = params.dam_name
-        domain_gis = generate_dynamic_domain_gis(dam_name=dam_name)
+        domain_gis = generate_dynamic_domain_gis(dam_name=params.dam_name, river_name=params.river_name)
 
         Vw_mcm = params.reservoir_volume_mcm
         hw_m = params.breach_depth_m

@@ -1,5 +1,8 @@
 <script lang="ts">
   import { ShieldCheck, Info, Database, Satellite, Cpu } from 'lucide-svelte';
+  import { selectedLocation, simulationResults } from '../store';
+
+  $: activeDam = $simulationResults?.dam_name || $selectedLocation?.name || 'Dam';
 </script>
 
 <div class="glass-panel rounded-xl p-4 space-y-3 text-xs select-none border border-command-border">
@@ -25,7 +28,7 @@
     <div class="flex items-center justify-between p-2 bg-command-950/60 rounded border border-command-border">
       <span class="flex items-center gap-2 text-slate-300">
         <Cpu class="w-3.5 h-3.5 text-emerald-400" />
-        Hydrological & Dam Curves (Tehri CWC)
+        Hydrological & Dam Curves ({activeDam} CWC)
       </span>
       <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">GOOD</span>
     </div>

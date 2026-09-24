@@ -186,35 +186,133 @@ INDIAN_DAMS_DATABASE = [
   }
 ]
 
-def generate_dynamic_domain_gis(dam_name: str = None, lat: float = None, lng: float = None) -> Dict[str, Any]:
+DAM_SETTLEMENTS_MAP = {
+    "loc-tehri-dam": [
+        "New Tehri Suburb / Dam Foot", "Koteshwar Riverside Reach", "Devprayag Confluence Reach",
+        "Malakunti Riverside Settlement", "Byasi Valley Sector", "Shivpuri Camp Reach",
+        "Muni Ki Reti / Tepovan", "Rishikesh Urban Riverfront", "Raiwala Lowland Sector", "Haridwar Plain Corridor"
+    ],
+    "loc-mullaperiyar-dam": [
+        "Thekkady Dam Foot Sector", "Vallakkadavu Riverside", "Vandiperiyar Town Corridor",
+        "Manjumala Valley Reach", "Mlappara Settlement", "Elappara Riverside",
+        "Upputhara Valley Sector", "Ayyappancoil Reach", "Karikuzhi Confluence", "Idukki Reservoir Inflow Reach"
+    ],
+    "loc-bhakra-dam": [
+        "Bhakra Dam Foot / Nangal Suburb", "Nangal Riverside Reach", "Naya Nangal Industrial Corridor",
+        "Anandpur Sahib Valley", "Kiratpur Sahib Reach", "Ropar (Roopnagar) Sector",
+        "Chamkaur Plain Corridor", "Machhiwara Valley", "Ludhiana Riverine Reach", "Harike Wetland Confluence"
+    ],
+    "loc-kosi-river": [
+        "Birpur Barrage Sector", "Bhimnagar Riverine Reach", "Basantpur Floodplain Settlement",
+        "Raghopur Riverside", "Supaul Lowland Reach", "Madhepura Plain Sector",
+        "Saharsa River Corridor", "Simri Bakhtiarpur Corridor", "Mansi Valley Reach", "Kursela Ganga Confluence"
+    ],
+    "loc-hirakud-dam": [
+        "Burla Dam Foot Sector", "Sambalpur Riverfront Corridor", "Chiplima Power Reach",
+        "Dhama Valley Reach", "Binka Riverside Settlement", "Sonepur (Subarnapur) Confluence",
+        "Baudh (Boudh) Riverside", "Tikarpada Gorge Corridor", "Athagarh Lowland Sector", "Cuttack Mahanadi Plain"
+    ],
+    "loc-sardar-sarovar": [
+        "Kevadia Dam Foot Suburb", "Garudeshwar Valley Reach", "Tilakwada Riverside Corridor",
+        "Rajpipla Lowland Reach", "Poicha Confluence Sector", "Sinor Riverine Town",
+        "Chandod Sacred Ghats", "Jhagadia Industrial Reach", "Bharuch Urban Plain", "Gulf of Khambhat Estuary"
+    ],
+    "loc-idukki-dam": [
+        "Cheruthoni Dam Foot Sector", "Painavu Valley Reach", "Karimban Corridor",
+        "Chelachuvadu Riverine", "Lower Periyar Reach", "Neriamangalam Valley",
+        "Kothamangalam Plain", "Perumbavoor River Sector", "Aluva (Alwaye) Urban Reach", "Kochi Backwaters Estuary"
+    ],
+    "loc-nagarjuna-sagar": [
+        "Vijayapuri Dam Foot Sector", "Macherla Valley Reach", "Gurazala River Corridor",
+        "Dachepalli Plain Reach", "Amaravati Riverine Sector", "Ibrahimpatnam Reach",
+        "Vijayawada Urban Plain", "Tenali Floodplain Sector", "Avanigadda Delta", "Hamsaladeevi Coastal Inflow"
+    ],
+    "loc-ukai-dam": [
+        "Songadh Dam Foot Reach", "Vyara Valley Sector", "Mandvi Tapi Corridor",
+        "Bodhan Riverside Settlement", "Kamrej Valley Sector", "Sarthana Lowland Reach",
+        "Surat Eastern Suburbs", "Surat Central Riverfront", "Hazira Industrial Delta", "Arabian Sea Estuary"
+    ],
+    "loc-koyna-dam": [
+        "Koynanagar Dam Foot Sector", "Helwak Valley Reach", "Patan Riverine Corridor",
+        "Karad Krishna Confluence", "Sangli Plain Reach", "Miraj Riverine Sector",
+        "Haripur Confluence", "Kolhapur Lowland Corridor", "Shirol Delta Sector", "Kurundwad Plain"
+    ],
+    "loc-rihand-dam": [
+        "Renukoot Dam Foot Sector", "Pipri Power Station Reach", "Anpara Reservoir Corridor",
+        "Shaktinagar Lowland Reach", "Obra Confluence Reach", "Chopan Riverside Sector",
+        "Sonbhadra Valley", "Robertsganj Plain Sector", "Son River Confluence", "Mirzapur Downstream Basin"
+    ],
+    "loc-tungabhadra-dam": [
+        "Hosapete Dam Foot Sector", "Hampi Sacred River Valley", "Kampli Riverine Reach",
+        "Siruguppa Flood Corridor", "Gangavathi Plain Sector", "Sindhanur Lowland Reach",
+        "Mantralayam Temple Reach", "Raichur Riverine Basin", "Alampur Confluence Sector", "Kurnool Krishna Confluence"
+    ]
+}
+
+def generate_dynamic_domain_gis(dam_name: str = None, river_name: str = None, lat: float = None, lng: float = None) -> Dict[str, Any]:
     """
     Dynamically construct real spatial GIS layers (Dams, River Reach LineString, Downstream Settlements, Infrastructure)
-    for ANY dam or river location in India based on coordinates or search name.
+    for ANY dam or river location in India based on coordinates, dam name, or river name.
     """
-    # 1. Match Dam Metadata
+    # 1. Match Dam & River Metadata
     target_dam = None
-    if dam_name:
+    query_dam = (dam_name or "").lower().strip()
+    query_river = (river_name or "").lower().strip()
+
+    if query_dam or query_river:
         for d in INDIAN_DAMS_DATABASE:
-            if dam_name.lower() in d["name"].lower() or d["name"].lower() in dam_name.lower():
-                target_dam = d
+            d_name = d["name"].lower()
+            d_river = d["river"].lower()
+            d_id = d["id"].lower()
+            d_state = d["state"].lower()
+            
+            # Match dam_name or river_name against database entries
+            if (query_dam and (query_dam in d_name or d_name in query_dam or query_dam in d_river or d_river in query_dam or query_dam in d_id)) or \
+               (query_river and (query_river in d_river or d_river in query_river or query_river in d_name)):
+                target_dam = dict(d)
                 break
 
     if not target_dam and lat is not None and lng is not None:
-        # Find closest dam by distance
         min_d = float('inf')
         for d in INDIAN_DAMS_DATABASE:
             dist = math.hypot(d["lat"] - lat, d["lng"] - lng)
             if dist < min_d:
                 min_d = dist
-                target_dam = d
+                target_dam = dict(d)
 
+    # If no pre-indexed dam matched, construct custom domain retaining exact caller-provided names
     if not target_dam:
-        target_dam = INDIAN_DAMS_DATABASE[0]  # Fallback to Tehri
+        clean_name = dam_name.strip() if (dam_name and dam_name.strip()) else "Study Dam"
+        clean_riv = river_name.strip() if (river_name and river_name.strip()) else f"{clean_name} River"
+        target_dam = {
+            "id": f"loc-{clean_name.lower().replace(' ', '-')[:25]}",
+            "name": clean_name,
+            "type": "Dam / Reservoir",
+            "state": "National Study Domain",
+            "country": "India",
+            "river": clean_riv,
+            "lat": lat if lat is not None else 23.5,
+            "lng": lng if lng is not None else 78.5,
+            "zoom": 12,
+            "dam_height_m": 120.0,
+            "reservoir_level_m": 450.0,
+            "reservoir_volume_mcm": 2500.0,
+            "description": f"Dynamic simulation domain for {clean_name} on {clean_riv}."
+        }
+
+    # Always ensure user-requested names take precedence
+    if dam_name and dam_name.strip():
+        dam_title = dam_name.strip()
+    else:
+        dam_title = target_dam["name"]
+
+    if river_name and river_name.strip():
+        river_name_clean = river_name.strip()
+    else:
+        river_name_clean = target_dam["river"]
 
     dam_lat = target_dam["lat"]
     dam_lng = target_dam["lng"]
-    river_name = target_dam["river"]
-    dam_title = target_dam["name"]
 
     # 2. Build Reservoir & Dam Feature Collection
     dams_geojson = {
@@ -226,12 +324,12 @@ def generate_dynamic_domain_gis(dam_name: str = None, lat: float = None, lng: fl
                 "properties": {
                     "id": target_dam["id"],
                     "name": dam_title,
-                    "river": river_name,
-                    "type": target_dam["type"],
-                    "height_m": target_dam["dam_height_m"],
-                    "reservoir_level_m": target_dam["reservoir_level_m"],
-                    "reservoir_volume_mcm": target_dam["reservoir_volume_mcm"],
-                    "state": target_dam["state"],
+                    "river": river_name_clean,
+                    "type": target_dam.get("type", "Dam / Reservoir"),
+                    "height_m": target_dam.get("dam_height_m", 120.0),
+                    "reservoir_level_m": target_dam.get("reservoir_level_m", 450.0),
+                    "reservoir_volume_mcm": target_dam.get("reservoir_volume_mcm", 2500.0),
+                    "state": target_dam.get("state", "India"),
                     "country": "India"
                 },
                 "geometry": { "type": "Point", "coordinates": [dam_lng, dam_lat] }
@@ -242,7 +340,7 @@ def generate_dynamic_domain_gis(dam_name: str = None, lat: float = None, lng: fl
                     "id": f"res-{target_dam['id']}",
                     "name": f"{dam_title} Reservoir",
                     "type": "Reservoir",
-                    "area_sqkm": round(target_dam["reservoir_volume_mcm"] / 65.0, 1)
+                    "area_sqkm": round(target_dam.get("reservoir_volume_mcm", 2500.0) / 65.0, 1)
                 },
                 "geometry": {
                     "type": "Polygon",
@@ -268,7 +366,7 @@ def generate_dynamic_domain_gis(dam_name: str = None, lat: float = None, lng: fl
     data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
     tehri_river_path = os.path.join(data_dir, "Tehri_River.geojson")
     
-    if (target_dam["id"] == "loc-tehri-dam" or (dam_name and "tehri" in dam_name.lower())) and os.path.exists(tehri_river_path):
+    if (target_dam["id"] == "loc-tehri-dam" or (dam_title and "tehri" in dam_title.lower())) and os.path.exists(tehri_river_path):
         try:
             with open(tehri_river_path, "r", encoding="utf-8") as f:
                 r_data = json.load(f)
@@ -277,17 +375,32 @@ def generate_dynamic_domain_gis(dam_name: str = None, lat: float = None, lng: fl
             pass
 
     if not river_coords:
-        # Construct realistic sinuous mountain/plain river path following geographical flow direction
         num_points = 16
         # Flow direction vectors based on major Indian river basins
         d_lat_step = -0.015 if dam_lat > 20.0 else -0.012
         d_lng_step = 0.018 if dam_lng < 78.0 else -0.014
-        if "periyar" in river_name.lower():
+        
+        riv_lower = river_name_clean.lower()
+        if "periyar" in riv_lower:
             d_lat_step, d_lng_step = 0.012, -0.022
-        elif "sutlej" in river_name.lower():
+        elif "sutlej" in riv_lower:
             d_lat_step, d_lng_step = -0.010, -0.025
-        elif "kosi" in river_name.lower():
+        elif "kosi" in riv_lower:
             d_lat_step, d_lng_step = -0.025, -0.008
+        elif "mahanadi" in riv_lower:
+            d_lat_step, d_lng_step = -0.012, 0.022
+        elif "narmada" in riv_lower:
+            d_lat_step, d_lng_step = -0.006, -0.024
+        elif "tapi" in riv_lower:
+            d_lat_step, d_lng_step = -0.004, -0.025
+        elif "krishna" in riv_lower:
+            d_lat_step, d_lng_step = -0.008, 0.024
+        elif "koyna" in riv_lower:
+            d_lat_step, d_lng_step = -0.018, 0.014
+        elif "tungabhadra" in riv_lower:
+            d_lat_step, d_lng_step = 0.012, 0.020
+        elif "rihand" in riv_lower:
+            d_lat_step, d_lng_step = 0.022, 0.008
 
         for i in range(num_points):
             meander_lat = math.sin(i * 0.55) * 0.012
@@ -304,7 +417,7 @@ def generate_dynamic_domain_gis(dam_name: str = None, lat: float = None, lng: fl
                 "type": "Feature",
                 "properties": {
                     "id": f"river-{target_dam['id']}",
-                    "name": river_name,
+                    "name": river_name_clean,
                     "reach": f"{dam_title} Downstream Valley Reach",
                     "length_km": 112.5,
                     "manning_n_default": 0.035
@@ -316,25 +429,23 @@ def generate_dynamic_domain_gis(dam_name: str = None, lat: float = None, lng: fl
 
     # 4. Generate Downstream Settlements along River Reach
     village_features = []
-    settlement_names = [
-        f"{dam_title} Suburb / Dam Foot",
-        f"Koteshwar / River Bank Corridor",
-        f"Alaknanda Valley Junction",
-        f"Confluence Town",
-        f"Valley Riverside Settlement",
-        f"Shivpuri Camp Corridor",
-        f"Muni Ki Reti / Tepovan",
-        f"Regional Urban Center",
-        f"Raiwala Junction Settlement",
-        f"Downstream Plain City"
-    ]
+    settlement_names = DAM_SETTLEMENTS_MAP.get(target_dam["id"], [
+        f"{dam_title} Dam Foot Sector",
+        f"{dam_title} Upper Valley Sector",
+        f"{river_name_clean} Bridge Crossing",
+        f"{river_name_clean} Riverside Corridor",
+        f"{dam_title} Mid-Reach Town",
+        f"{river_name_clean} Confluence Settlement",
+        f"{dam_title} Regional Center",
+        f"{river_name_clean} Lowland Plain",
+        f"{river_name_clean} Agricultural Basin",
+        f"{river_name_clean} Terminal Estuary"
+    ])
 
     for idx, name in enumerate(settlement_names):
-        # Pick point along river line
         r_idx = min(idx * 2, len(river_coords) - 1)
         r_pt = river_coords[r_idx]
         
-        # Offset village slightly from river centerline
         v_lng = r_pt[0] + (0.003 if idx % 2 == 0 else -0.003)
         v_lat = r_pt[1] + (0.002 if idx % 2 == 1 else -0.002)
 
@@ -346,9 +457,9 @@ def generate_dynamic_domain_gis(dam_name: str = None, lat: float = None, lng: fl
             "properties": {
                 "id": f"v-{idx+1:02d}",
                 "name": name,
-                "district": f"{target_dam['state']} District",
+                "district": f"{target_dam.get('state', 'Regional')} District",
                 "population": pop,
-                "elevation_m": round(target_dam["reservoir_level_m"] - (idx * 45.0 + 30.0), 1),
+                "elevation_m": round(target_dam.get("reservoir_level_m", 450.0) - (idx * 45.0 + 30.0), 1),
                 "distance_downstream_km": dist_km,
                 "criticality": "CRITICAL" if pop > 8000 else ("HIGH" if pop > 2000 else "MEDIUM"),
                 "hospital_count": max(0, int(pop / 12000)),
@@ -370,7 +481,7 @@ def generate_dynamic_domain_gis(dam_name: str = None, lat: float = None, lng: fl
             "type": "Feature",
             "properties": {
                 "id": "road-main-hwy",
-                "name": f"NH State Highway Corridor ({dam_title} Valley)",
+                "name": f"State Highway Corridor ({dam_title} - {river_name_clean} Valley)",
                 "category": "road",
                 "importance": "PRIMARY_ARTERIAL"
             },
@@ -382,31 +493,31 @@ def generate_dynamic_domain_gis(dam_name: str = None, lat: float = None, lng: fl
                 "id": "bridge-01",
                 "name": f"{dam_title} Downstream Suspension Bridge",
                 "category": "bridge",
-                "elevation_m": round(target_dam["reservoir_level_m"] - 120.0, 1)
+                "elevation_m": round(target_dam.get("reservoir_level_m", 450.0) - 120.0, 1)
             },
-            "geometry": { "type": "Point", "coordinates": river_coords[4] }
+            "geometry": { "type": "Point", "coordinates": river_coords[4] if len(river_coords) > 4 else river_coords[-1] }
         },
         {
             "type": "Feature",
             "properties": {
                 "id": "hosp-01",
-                "name": f"{target_dam['state']} Regional Tertiary Hospital",
+                "name": f"{target_dam.get('state', 'Regional')} Tertiary Civil Hospital",
                 "category": "hospital",
                 "beds": 450,
-                "elevation_m": round(target_dam["reservoir_level_m"] - 220.0, 1)
+                "elevation_m": round(target_dam.get("reservoir_level_m", 450.0) - 220.0, 1)
             },
-            "geometry": { "type": "Point", "coordinates": [river_coords[8][0] + 0.006, river_coords[8][1] + 0.005] }
+            "geometry": { "type": "Point", "coordinates": [river_coords[min(8, len(river_coords)-1)][0] + 0.006, river_coords[min(8, len(river_coords)-1)][1] + 0.005] }
         },
         {
             "type": "Feature",
             "properties": {
                 "id": "shelter-01",
-                "name": "Disaster Relief Shelter Alpha",
+                "name": f"{dam_title} Disaster Relief Shelter Alpha",
                 "category": "shelter",
                 "capacity_persons": 5000,
-                "elevation_m": round(target_dam["reservoir_level_m"] - 180.0, 1)
+                "elevation_m": round(target_dam.get("reservoir_level_m", 450.0) - 180.0, 1)
             },
-            "geometry": { "type": "Point", "coordinates": [river_coords[6][0] - 0.005, river_coords[6][1] + 0.008] }
+            "geometry": { "type": "Point", "coordinates": [river_coords[min(6, len(river_coords)-1)][0] - 0.005, river_coords[min(6, len(river_coords)-1)][1] + 0.008] }
         }
     ]
 
@@ -422,5 +533,7 @@ def generate_dynamic_domain_gis(dam_name: str = None, lat: float = None, lng: fl
         "river": river_geojson,
         "villages": villages_geojson,
         "infra": infra_geojson,
-        "river_coords": river_coords
+        "river_coords": river_coords,
+        "dam_name": dam_title,
+        "river_name": river_name_clean
     }

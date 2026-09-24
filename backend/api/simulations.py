@@ -9,12 +9,12 @@ router = APIRouter(prefix="/simulations", tags=["Simulations"])
 
 from backend.spatial.dynamic_domain import generate_dynamic_domain_gis
 
-def _load_domain_data(dam_name: str = None):
-    return generate_dynamic_domain_gis(dam_name=dam_name)
+def _load_domain_data(dam_name: str = None, river_name: str = None):
+    return generate_dynamic_domain_gis(dam_name=dam_name, river_name=river_name)
 
 @router.post("/run")
 def start_simulation(params: SimulationParameters):
-    domain_data = _load_domain_data(params.dam_name)
+    domain_data = _load_domain_data(params.dam_name, params.river_name)
     dam_props = domain_data["dams"]["features"][0]["properties"] if domain_data.get("dams", {}).get("features") else {}
     validation = validate_simulation_inputs(params, dam_props)
     

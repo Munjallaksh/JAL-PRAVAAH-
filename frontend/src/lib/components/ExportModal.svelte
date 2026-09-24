@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { activeJobId } from '../store';
-  import { Download, FileText, Globe, FileSpreadsheet, FileArchive, X } from 'lucide-svelte';
+  import { activeJobId, selectedLocation, simulationResults } from '../store';
+  import { Download, FileText, Globe, FileSpreadsheet, FileArchive, X, MapPin } from 'lucide-svelte';
 
   const dispatch = createEventDispatcher();
 
@@ -12,6 +12,9 @@
   function getDownloadUrl(format: string) {
     return `/api/exports/${$activeJobId}/${format}`;
   }
+
+  $: damName = $simulationResults?.dam_name || $selectedLocation?.name || 'Dam';
+  $: riverName = $simulationResults?.river_name || $selectedLocation?.river || 'River Reach';
 </script>
 
 <div class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-none">
@@ -26,8 +29,14 @@
       </button>
     </div>
 
-    <div class="text-xs text-slate-300 font-mono">
-      Scenario ID: <strong class="text-sky-400">{$activeJobId}</strong>
+    <div class="flex items-center justify-between text-xs text-slate-300 font-mono bg-command-950/60 p-2.5 rounded-lg border border-command-border">
+      <div>
+        Scenario ID: <strong class="text-sky-400">{$activeJobId}</strong>
+      </div>
+      <div class="flex items-center gap-1.5 text-emerald-400 font-semibold truncate max-w-[260px]">
+        <MapPin class="w-3.5 h-3.5 shrink-0" />
+        <span class="truncate">{damName} ({riverName})</span>
+      </div>
     </div>
 
     <!-- Export Buttons Grid -->
@@ -102,8 +111,8 @@
       <div class="flex items-center gap-3">
         <FileText class="w-6 h-6 group-hover:scale-110 transition-transform" />
         <div class="text-left">
-          <div class="text-xs font-bold">Generate Executive HADR PDF Report</div>
-          <div class="text-[10px] text-sky-200 font-mono">Complete formatted decision summary with tables & metrics</div>
+          <div class="text-xs font-bold">Download {damName} Executive Report (PDF)</div>
+          <div class="text-[10px] text-sky-200 font-mono">Decision-support summary for {damName} on {riverName}</div>
         </div>
       </div>
       <Download class="w-5 h-5" />
