@@ -64,39 +64,53 @@ class SPHEngine(BaseSimulationEngine):
     def parse_results(self, job_id: str, raw_output: Dict[str, Any]) -> Dict[str, Any]:
         params = raw_output["params"]
         num_p = raw_output["num_particles"]
-        river_coords = raw_output["river_coords"]
+        raw_river_coords = raw_output["river_coords"]
         
-        Q_sph = round(16200.0 * (params.breach_width_m / 100.0) * (params.reservoir_level_m / 820.0), 1)
+        from backend.spatial.hydro_routing import predict_flood_wave_attenuation_and_extinction
+        formation_hrs = getattr(params, "breach_formation_time_min", 60.0) / 60.0 if hasattr(params, "breach_formation_time_min") else getattr(params, "breach_formation_time_hours", 1.0)
 
-        scale = min(3.2, max(0.9, Q_sph / 11000.0))
-        from backend.spatial.spatial_ops import generate_curved_inundation_polygon
-        poly_coords = generate_curved_inundation_polygon(river_coords, scale_factor=scale)
+        routing_res = predict_flood_wave_attenuation_and_extinction(
+            dam_name=params.dam_name,
+            river_name=params.river_name,
+            dam_coords=raw_river_coords[0],
+            dam_height_m=getattr(params, "dam_height_m", 260.0),
+            reservoir_level_m=params.reservoir_level_m,
+            reservoir_volume_mcm=params.reservoir_volume_mcm,
+            breach_width_m=params.breach_width_m,
+            breach_formation_time_hrs=formation_hrs,
+            river_coords=raw_river_coords,
+            scenario_type=params.scenario_type,
+            release_discharge_cumecs=params.release_discharge_cumecs
+        )
 
-        sph_inundation_geojson = {
-            "type": "FeatureCollection",
-            "name": f"SPH_Inundation_{job_id}",
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {
-                        "scenario_id": job_id,
-                        "dam_name": params.dam_name,
-                        "river_name": params.river_name,
-                        "engine": "SPH",
-                        "provenance": "SPH SIMULATION (2D SOLVER)",
-                        "particle_count": num_p,
-                        "kernel": "Cubic Spline W(r,h)",
-                        "peak_flow_cumecs": Q_sph,
-                        "max_depth_m": round(min(15.2, 3.8 + Q_sph / 2300.0), 2),
-                        "max_velocity_mps": round(min(8.4, 2.1 + Q_sph / 3500.0), 2)
-                    },
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [poly_coords]
-                    }
-                }
-            ]
+        Q_sph = routing_res["origin"]["peak_discharge_cumecs"]
+        active_river_coords = routing_res["active_river_coords"]
+        scale = min(3.5, max(0.85, Q_sph / 11000.0))
+
+        from backend.spatial.spatial_ops import generate_realistic_flood_inundation_geojson
+        
+        base_props = {
+            "scenario_id": job_id,
+            "dam_name": params.dam_name,
+            "river_name": params.river_name,
+            "engine": "SPH",
+            "provenance": "SPH SIMULATION (2D SOLVER)",
+            "particle_count": num_p,
+            "kernel": "Cubic Spline W(r,h)",
+            "peak_flow_cumecs": Q_sph,
+            "max_depth_m": round(min(16.0, 3.8 + Q_sph / 2200.0), 2),
+            "max_velocity_mps": round(min(9.2, 2.3 + Q_sph / 3400.0), 2),
+            "breach_origin": routing_res["origin"],
+            "termination_point": routing_res["termination"],
+            "total_reach_km": routing_res["total_reach_km"],
+            "attenuation_ratio_percent": routing_res["attenuation_ratio_percent"]
         }
+
+        sph_inundation_geojson = generate_realistic_flood_inundation_geojson(
+            active_river_coords,
+            scale_factor=scale,
+            properties_template=base_props
+        )
 
         temporal_snapshots = []
         duration_hrs = params.simulation_duration_hours
@@ -104,33 +118,45 @@ class SPHEngine(BaseSimulationEngine):
 
         for step in range(total_steps):
             time_min = int((step / (total_steps - 1)) * (duration_hrs * 60))
-            reached_idx = max(2, int((step / (total_steps - 1)) * len(river_coords)))
-            sub_coords = river_coords[:reached_idx]
-            sub_poly = generate_curved_inundation_polygon(sub_coords, scale_factor=scale * ((step + 1) / total_steps))
+            reached_idx = max(2, int(((step + 1) / total_steps) * len(active_river_coords)))
+            sub_coords = active_river_coords[:reached_idx]
+            sub_scale = scale * ((step + 1) / total_steps)
+
+            step_props = dict(base_props)
+            step_props.update({
+                "time_min": time_min,
+                "step": step,
+                "total_steps": total_steps,
+                "particle_front_count": int(num_p * (step + 1) / total_steps),
+                "wave_front_km": round((reached_idx / len(active_river_coords)) * routing_res["total_reach_km"], 1),
+                "max_depth_m": round(min(14.0, ((step + 1) / total_steps) * 9.5 + 1.4), 2)
+            })
+
+            sub_geojson = generate_realistic_flood_inundation_geojson(
+                sub_coords,
+                scale_factor=sub_scale,
+                properties_template=step_props,
+                step=step,
+                total_steps=total_steps
+            )
 
             temporal_snapshots.append({
                 "timestep_min": time_min,
                 "formatted_time": f"{time_min // 60}h {time_min % 60:02d}m" if time_min >= 60 else f"{time_min} min",
-                "geojson": {
-                    "type": "FeatureCollection",
-                    "features": [{
-                        "type": "Feature",
-                        "properties": {
-                            "time_min": time_min,
-                            "particle_front_count": int(num_p * (step + 1) / total_steps),
-                            "max_depth_m": round(min(13.5, (step / total_steps) * 9.2 + 1.4), 2)
-                        },
-                        "geometry": {"type": "Polygon", "coordinates": [sub_poly]}
-                    }]
-                }
+                "geojson": sub_geojson
             })
 
         return {
             "max_inundation": sph_inundation_geojson,
             "temporal_snapshots": temporal_snapshots,
             "peak_flow_cumecs": Q_sph,
-            "max_depth_m": round(min(15.2, 3.8 + Q_sph / 2300.0), 2),
+            "max_depth_m": round(min(16.0, 3.8 + Q_sph / 2200.0), 2),
             "engine": "SPH",
+            "origin": routing_res["origin"],
+            "termination": routing_res["termination"],
+            "reach_profile": routing_res["reach_profile"],
+            "total_reach_km": routing_res["total_reach_km"],
+            "active_river_coords": active_river_coords,
             "sph_metadata": {
                 "particles": num_p,
                 "smoothing_length": "25.0 m",

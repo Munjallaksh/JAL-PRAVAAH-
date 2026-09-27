@@ -68,11 +68,8 @@ class Delft3DEngine(BaseSimulationEngine):
     def parse_results(self, job_id: str, raw_output: Dict[str, Any]) -> Dict[str, Any]:
         params = raw_output["params"]
         configured = raw_output["configured"]
-
-        Q_delft = round(17100.0 * (params.breach_width_m / 100.0) * (params.reservoir_level_m / 820.0), 1)
-
         domain_data = raw_output.get("domain_data", {})
-        river_coords = domain_data.get("river_coords") or [
+        raw_river_coords = domain_data.get("river_coords") or [
           [78.4803, 30.3781], [78.5020, 30.3540], [78.5280, 30.2780],
           [78.5610, 30.2210], [78.5980, 30.1470], [78.5520, 30.1210],
           [78.4820, 30.1150], [78.4120, 30.1080], [78.3450, 30.1340],
@@ -80,34 +77,50 @@ class Delft3DEngine(BaseSimulationEngine):
           [78.2120, 29.9850], [78.1642, 29.9457], [78.1320, 29.9010]
         ]
 
-        scale = min(3.4, max(0.9, Q_delft / 11500.0))
-        from backend.spatial.spatial_ops import generate_curved_inundation_polygon
-        poly_coords = generate_curved_inundation_polygon(river_coords, scale_factor=scale)
+        from backend.spatial.hydro_routing import predict_flood_wave_attenuation_and_extinction
+        formation_hrs = getattr(params, "breach_formation_time_min", 60.0) / 60.0 if hasattr(params, "breach_formation_time_min") else getattr(params, "breach_formation_time_hours", 1.0)
 
-        delft_inundation_geojson = {
-            "type": "FeatureCollection",
-            "name": f"Delft3D_Inundation_{job_id}",
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {
-                        "scenario_id": job_id,
-                        "dam_name": params.dam_name,
-                        "river_name": params.river_name,
-                        "engine": "DELFT3D",
-                        "provenance": "DELFT3D-FM SOLVER" if configured else "DELFT3D ADAPTER (REFERENCE GRID)",
-                        "is_configured": configured,
-                        "peak_flow_cumecs": Q_delft,
-                        "max_depth_m": round(min(14.8, 3.5 + Q_delft / 2400.0), 2),
-                        "max_velocity_mps": round(min(7.9, 1.9 + Q_delft / 3800.0), 2)
-                    },
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [poly_coords]
-                    }
-                }
-            ]
+        routing_res = predict_flood_wave_attenuation_and_extinction(
+            dam_name=params.dam_name,
+            river_name=params.river_name,
+            dam_coords=raw_river_coords[0],
+            dam_height_m=getattr(params, "dam_height_m", 260.0),
+            reservoir_level_m=params.reservoir_level_m,
+            reservoir_volume_mcm=params.reservoir_volume_mcm,
+            breach_width_m=params.breach_width_m,
+            breach_formation_time_hrs=formation_hrs,
+            river_coords=raw_river_coords,
+            scenario_type=params.scenario_type,
+            release_discharge_cumecs=params.release_discharge_cumecs
+        )
+
+        Q_delft = routing_res["origin"]["peak_discharge_cumecs"]
+        active_river_coords = routing_res["active_river_coords"]
+        scale = min(3.5, max(0.85, Q_delft / 11500.0))
+
+        from backend.spatial.spatial_ops import generate_realistic_flood_inundation_geojson
+        
+        base_props = {
+            "scenario_id": job_id,
+            "dam_name": params.dam_name,
+            "river_name": params.river_name,
+            "engine": "DELFT3D",
+            "provenance": "DELFT3D-FM SOLVER" if configured else "DELFT3D ADAPTER (REFERENCE GRID)",
+            "is_configured": configured,
+            "peak_flow_cumecs": Q_delft,
+            "max_depth_m": round(min(15.8, 3.6 + Q_delft / 2200.0), 2),
+            "max_velocity_mps": round(min(8.9, 2.2 + Q_delft / 3600.0), 2),
+            "breach_origin": routing_res["origin"],
+            "termination_point": routing_res["termination"],
+            "total_reach_km": routing_res["total_reach_km"],
+            "attenuation_ratio_percent": routing_res["attenuation_ratio_percent"]
         }
+
+        delft_inundation_geojson = generate_realistic_flood_inundation_geojson(
+            active_river_coords,
+            scale_factor=scale,
+            properties_template=base_props
+        )
 
         temporal_snapshots = []
         duration_hrs = params.simulation_duration_hours
@@ -115,33 +128,45 @@ class Delft3DEngine(BaseSimulationEngine):
 
         for step in range(total_steps):
             time_min = int((step / (total_steps - 1)) * (duration_hrs * 60))
-            reached_idx = max(2, int((step / (total_steps - 1)) * len(river_coords)))
-            sub_coords = river_coords[:reached_idx]
-            sub_poly = generate_curved_inundation_polygon(sub_coords, scale_factor=scale * ((step + 1) / total_steps))
+            reached_idx = max(2, int(((step + 1) / total_steps) * len(active_river_coords)))
+            sub_coords = active_river_coords[:reached_idx]
+            sub_scale = scale * ((step + 1) / total_steps)
+
+            step_props = dict(base_props)
+            step_props.update({
+                "time_min": time_min,
+                "step": step,
+                "total_steps": total_steps,
+                "wave_front_km": round((reached_idx / len(active_river_coords)) * routing_res["total_reach_km"], 1),
+                "max_depth_m": round(min(13.5, ((step + 1) / total_steps) * 9.5 + 1.3), 2)
+            })
+
+            sub_geojson = generate_realistic_flood_inundation_geojson(
+                sub_coords,
+                scale_factor=sub_scale,
+                properties_template=step_props,
+                step=step,
+                total_steps=total_steps
+            )
 
             temporal_snapshots.append({
                 "timestep_min": time_min,
                 "formatted_time": f"{time_min // 60}h {time_min % 60:02d}m" if time_min >= 60 else f"{time_min} min",
-                "geojson": {
-                    "type": "FeatureCollection",
-                    "features": [{
-                        "type": "Feature",
-                        "properties": {
-                            "time_min": time_min,
-                            "max_depth_m": round(min(12.8, (step / total_steps) * 8.8 + 1.3), 2)
-                        },
-                        "geometry": {"type": "Polygon", "coordinates": [sub_poly]}
-                    }]
-                }
+                "geojson": sub_geojson
             })
 
         return {
             "max_inundation": delft_inundation_geojson,
             "temporal_snapshots": temporal_snapshots,
             "peak_flow_cumecs": Q_delft,
-            "max_depth_m": round(min(14.8, 3.5 + Q_delft / 2400.0), 2),
+            "max_depth_m": round(min(15.8, 3.6 + Q_delft / 2200.0), 2),
             "engine": "DELFT3D",
-            "configured": configured
+            "configured": configured,
+            "origin": routing_res["origin"],
+            "termination": routing_res["termination"],
+            "reach_profile": routing_res["reach_profile"],
+            "total_reach_km": routing_res["total_reach_km"],
+            "active_river_coords": active_river_coords
         }
 
     def postprocess(self, job_id: str, parsed_data: Dict[str, Any]) -> Dict[str, Any]:

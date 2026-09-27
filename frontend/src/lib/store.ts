@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 
-export type NavTab = 'EXPLORE' | 'SIMULATE' | 'OBSERVE' | 'IMPACT' | 'COMPARE';
+export type NavTab = 'EXPLORE' | 'SIMULATE' | 'OBSERVE' | 'IMPACT' | 'COMPARE' | 'DATASOURCES';
 
 export interface LocationItem {
   id: string;
@@ -70,3 +70,6 @@ export const isTimelinePlaying = writable<boolean>(false);
 
 // Inspector Modal
 export const selectedFeatureInfo = writable<any>(null);
+
+// Dynamic Domain River Coords (for any Indian dam / river)
+export const domainRiverCoords = writable<[number, number][]>([]);

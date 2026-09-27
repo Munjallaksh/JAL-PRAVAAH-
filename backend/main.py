@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
-from backend.api import locations, simulations, observation, comparison, export
+from backend.api import locations, simulations, observation, comparison, export, datasources
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -26,6 +26,7 @@ app.include_router(simulations.router, prefix=settings.API_V1_STR)
 app.include_router(observation.router, prefix=settings.API_V1_STR)
 app.include_router(comparison.router, prefix=settings.API_V1_STR)
 app.include_router(export.router, prefix=settings.API_V1_STR)
+app.include_router(datasources.router, prefix=settings.API_V1_STR)
 
 @app.get("/api/health")
 def health_check():

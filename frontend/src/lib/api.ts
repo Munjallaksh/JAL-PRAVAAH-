@@ -62,3 +62,44 @@ export async function fetchModelComparison(params: any) {
   if (!res.ok) throw new Error('Failed to compute model comparison');
   return await res.json();
 }
+
+// ============================================================
+// DATA SOURCES REGISTRY & MANIFEST API
+// ============================================================
+
+export async function fetchDataProviders(params?: { q?: string; category?: string; protocol?: string; authority?: string }) {
+  const query = new URLSearchParams();
+  if (params?.q) query.set('q', params.q);
+  if (params?.category) query.set('category', params.category);
+  if (params?.protocol) query.set('protocol', params.protocol);
+  if (params?.authority) query.set('authority', params.authority);
+
+  const res = await fetch(`${API_BASE}/datasources/search?${query.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch data providers');
+  return await res.json();
+}
+
+export async function fetchDataCategories() {
+  const res = await fetch(`${API_BASE}/datasources/categories`);
+  if (!res.ok) throw new Error('Failed to fetch category statistics');
+  return await res.json();
+}
+
+export async function fetchDataReadiness(damName: string = 'Tehri Dam', riverName: string = 'Bhagirathi River') {
+  const res = await fetch(`${API_BASE}/datasources/readiness?dam_name=${encodeURIComponent(damName)}&river_name=${encodeURIComponent(riverName)}`);
+  if (!res.ok) throw new Error('Failed to fetch data readiness report');
+  return await res.json();
+}
+
+export async function fetchSimulationManifest(damName: string = 'Tehri Dam', riverName: string = 'Bhagirathi River') {
+  const res = await fetch(`${API_BASE}/datasources/manifest/simulation?dam_name=${encodeURIComponent(damName)}&river_name=${encodeURIComponent(riverName)}`);
+  if (!res.ok) throw new Error('Failed to fetch simulation input manifest');
+  return await res.json();
+}
+
+export async function fetchValidationManifest(jobId: string = 'JOB-SAR-VAL-001') {
+  const res = await fetch(`${API_BASE}/datasources/manifest/validation?job_id=${encodeURIComponent(jobId)}`);
+  if (!res.ok) throw new Error('Failed to fetch validation manifest');
+  return await res.json();
+}
+

@@ -9,6 +9,7 @@
   import ObserveModule from '../lib/components/ObserveModule.svelte';
   import HadrPriority from '../lib/components/HadrPriority.svelte';
   import DataConfidence from '../lib/components/DataConfidence.svelte';
+  import DataSourcesModule from '../lib/components/DataSourcesModule.svelte';
   import { activeTab, simulationResults } from '../lib/store';
 </script>
 
@@ -46,7 +47,7 @@
     </aside>
   </div>
 
-  <!-- Bottom Drawer for Tab-specific Analytical Views (OBSERVE, IMPACT, COMPARE) -->
+  <!-- Bottom Drawer for Tab-specific Analytical Views (OBSERVE, IMPACT, COMPARE, DATASOURCES) -->
   {#if $activeTab === 'IMPACT'}
     <div class="absolute inset-x-0 bottom-0 top-16 z-40 bg-command-950/95 backdrop-blur-xl p-6 overflow-y-auto animate-in slide-in-from-bottom duration-300">
       <div class="max-w-6xl mx-auto space-y-6">
@@ -65,6 +66,10 @@
       <div class="max-w-6xl mx-auto space-y-6">
         <ObserveModule />
       </div>
+    </div>
+  {:else if $activeTab === 'DATASOURCES'}
+    <div class="absolute inset-x-0 bottom-0 top-16 z-40 bg-command-950/95 backdrop-blur-xl overflow-hidden animate-in slide-in-from-bottom duration-300">
+      <DataSourcesModule />
     </div>
   {/if}
 </div>

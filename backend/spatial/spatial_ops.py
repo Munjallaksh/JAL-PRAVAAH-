@@ -39,39 +39,39 @@ DEPTH_ZONE_CONFIGS = [
         "depth_category": "0.1 - 0.5 m",
         "min_depth_m": 0.1,
         "max_depth_m": 0.5,
-        "width_ratio": 2.05,
-        "fill_color": "#93c5fd",
-        "fill_opacity": 0.48,
-        "roughness": 0.32
+        "width_ratio": 2.25,
+        "fill_color": "#7ccbf9",
+        "fill_opacity": 0.55,
+        "roughness": 0.38
     },
     {
         "zone_id": "zone_shallow",
         "depth_category": "0.5 - 2 m",
         "min_depth_m": 0.5,
         "max_depth_m": 2.0,
-        "width_ratio": 1.45,
-        "fill_color": "#38bdf8",
-        "fill_opacity": 0.62,
-        "roughness": 0.22
+        "width_ratio": 1.60,
+        "fill_color": "#3ba7f5",
+        "fill_opacity": 0.68,
+        "roughness": 0.26
     },
     {
         "zone_id": "zone_moderate",
         "depth_category": "2 - 5 m",
         "min_depth_m": 2.0,
         "max_depth_m": 5.0,
-        "width_ratio": 1.00,
-        "fill_color": "#2563eb",
-        "fill_opacity": 0.72,
-        "roughness": 0.14
+        "width_ratio": 1.10,
+        "fill_color": "#1d6dd8",
+        "fill_opacity": 0.78,
+        "roughness": 0.16
     },
     {
         "zone_id": "zone_deep",
         "depth_category": "5 - 10 m",
         "min_depth_m": 5.0,
         "max_depth_m": 10.0,
-        "width_ratio": 0.65,
-        "fill_color": "#1d4ed8",
-        "fill_opacity": 0.82,
+        "width_ratio": 0.70,
+        "fill_color": "#12499c",
+        "fill_opacity": 0.88,
         "roughness": 0.08
     },
     {
@@ -79,9 +79,9 @@ DEPTH_ZONE_CONFIGS = [
         "depth_category": "> 10 m",
         "min_depth_m": 10.0,
         "max_depth_m": 16.5,
-        "width_ratio": 0.36,
-        "fill_color": "#0a2558",
-        "fill_opacity": 0.92,
+        "width_ratio": 0.38,
+        "fill_color": "#092862",
+        "fill_opacity": 0.95,
         "roughness": 0.04
     }
 ]
@@ -103,7 +103,7 @@ def generate_realistic_flood_inundation_geojson(river_coords, scale_factor=1.0, 
     dam_name = props_base.get("dam_name", "Dam")
     river_name = props_base.get("river_name", "River")
 
-    pts = interpolate_smooth_river(river_coords, target_count=max(24, len(river_coords) * 2))
+    pts = interpolate_smooth_river(river_coords, target_count=max(28, len(river_coords) * 2))
     num_pts = len(pts)
 
     features = []
@@ -134,30 +134,31 @@ def generate_realistic_flood_inundation_geojson(river_coords, scale_factor=1.0, 
             ny = dx / length
 
             # 1. Upper Reservoir dendritic basin (Dam location)
-            lake_expansion = 2.4 * max(0.0, 1.0 - prog / 0.18) ** 1.3
+            lake_expansion = 3.2 * max(0.0, 1.0 - prog / 0.18) ** 1.3
 
             # 2. Confluence pooling basin (e.g. Devprayag / tributary junctions)
-            confluence_expansion = 2.1 * math.exp(-((prog - 0.38) / 0.055) ** 2)
+            confluence_expansion = 2.4 * math.exp(-((prog - 0.38) / 0.055) ** 2)
 
             # 3. Downstream alluvial plain expansion (Rishikesh to Haridwar plain)
-            plain_expansion = 2.8 * max(0.0, (prog - 0.60) / 0.40) ** 1.35
+            plain_expansion = 3.4 * max(0.0, (prog - 0.58) / 0.42) ** 1.35
 
             # 4. Dendritic valley harmonics (tributaries, side valleys, mountain fingers)
-            h1 = math.sin(i * 0.45) * 0.28
-            h2 = math.cos(i * 0.90 + 0.3) * 0.18
-            h3 = math.sin(i * 1.80) * 0.12
+            h1 = math.sin(i * 0.45) * 0.32
+            h2 = math.cos(i * 0.90 + 0.3) * 0.22
+            h3 = math.sin(i * 1.80) * 0.15
+            h4 = math.cos(i * 3.20 + 0.8) * 0.09
 
-            valley_mult = 1.0 + lake_expansion + confluence_expansion + plain_expansion + h1 + h2 + h3
-            base_half_w = 0.0072 * min(3.2, max(0.7, scale_factor)) * max(0.40, valley_mult)
+            valley_mult = 1.0 + lake_expansion + confluence_expansion + plain_expansion + h1 + h2 + h3 + h4
+            base_half_w = 0.0078 * min(3.2, max(0.7, scale_factor)) * max(0.40, valley_mult)
 
             # Asymmetric lateral expansion into tributary side gullies
             w_ratio = z_cfg["width_ratio"]
             roughness = z_cfg["roughness"]
-            rough_left = math.sin(i * 1.6 + z_idx * 0.8) * roughness
-            rough_right = math.cos(i * 1.4 + z_idx * 1.1) * roughness
+            rough_left = (math.sin(i * 1.6 + z_idx * 0.8) + 0.4 * math.sin(i * 4.2)) * roughness
+            rough_right = (math.cos(i * 1.4 + z_idx * 1.1) + 0.4 * math.cos(i * 3.8)) * roughness
 
-            w_left = base_half_w * w_ratio * max(0.2, 1.0 + rough_left)
-            w_right = base_half_w * w_ratio * max(0.2, 1.0 + rough_right)
+            w_left = base_half_w * w_ratio * max(0.25, 1.0 + rough_left)
+            w_right = base_half_w * w_ratio * max(0.25, 1.0 + rough_right)
 
             left_pt = [round(pt[0] + nx * w_left, 5), round(pt[1] + ny * w_left, 5)]
             right_pt = [round(pt[0] - nx * w_right, 5), round(pt[1] - ny * w_right, 5)]

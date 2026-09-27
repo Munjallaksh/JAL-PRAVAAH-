@@ -58,36 +58,51 @@ class DemoHydraulicEngine(BaseSimulationEngine):
 
     def parse_results(self, job_id: str, raw_output: Dict[str, Any]) -> Dict[str, Any]:
         params = raw_output["params"]
-        Q_peak = raw_output["Q_peak_cumecs"]
-        river_coords = raw_output["river_coords"]
+        raw_river_coords = raw_output["river_coords"]
 
+        from backend.spatial.hydro_routing import predict_flood_wave_attenuation_and_extinction
+        formation_hrs = getattr(params, "breach_formation_time_min", 60.0) / 60.0 if hasattr(params, "breach_formation_time_min") else getattr(params, "breach_formation_time_hours", 1.0)
+        
+        routing_res = predict_flood_wave_attenuation_and_extinction(
+            dam_name=params.dam_name,
+            river_name=params.river_name,
+            dam_coords=raw_river_coords[0],
+            dam_height_m=getattr(params, "dam_height_m", 260.0),
+            reservoir_level_m=params.reservoir_level_m,
+            reservoir_volume_mcm=params.reservoir_volume_mcm,
+            breach_width_m=params.breach_width_m,
+            breach_formation_time_hrs=formation_hrs,
+            river_coords=raw_river_coords,
+            scenario_type=params.scenario_type,
+            release_discharge_cumecs=params.release_discharge_cumecs
+        )
+
+        Q_peak = routing_res["origin"]["peak_discharge_cumecs"]
+        active_river_coords = routing_res["active_river_coords"]
         scale_factor = min(3.5, max(0.8, Q_peak / 12000.0))
-        from backend.spatial.spatial_ops import generate_curved_inundation_polygon
-        poly_coords = generate_curved_inundation_polygon(river_coords, scale_factor=scale_factor)
 
-        max_inundation_geojson = {
-            "type": "FeatureCollection",
-            "name": f"Flood_Inundation_{job_id}",
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {
-                        "scenario_id": job_id,
-                        "dam_name": params.dam_name,
-                        "river_name": params.river_name,
-                        "engine": "DEMO_HYDRAULIC",
-                        "provenance": "DEMO / SIMPLIFIED HYDRAULIC MODEL",
-                        "peak_discharge_cumecs": Q_peak,
-                        "max_depth_m": round(min(14.5, 3.2 + Q_peak / 2500.0), 2),
-                        "avg_velocity_mps": round(min(7.5, 1.8 + Q_peak / 4000.0), 2)
-                    },
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [poly_coords]
-                    }
-                }
-            ]
+        from backend.spatial.spatial_ops import generate_realistic_flood_inundation_geojson
+        
+        base_props = {
+            "scenario_id": job_id,
+            "dam_name": params.dam_name,
+            "river_name": params.river_name,
+            "engine": "DEMO_HYDRAULIC",
+            "provenance": "DEMO / SIMPLIFIED HYDRAULIC MODEL",
+            "peak_discharge_cumecs": Q_peak,
+            "max_depth_m": round(min(15.5, 3.4 + Q_peak / 2300.0), 2),
+            "max_velocity_mps": round(min(8.6, 2.2 + Q_peak / 3800.0), 2),
+            "breach_origin": routing_res["origin"],
+            "termination_point": routing_res["termination"],
+            "total_reach_km": routing_res["total_reach_km"],
+            "attenuation_ratio_percent": routing_res["attenuation_ratio_percent"]
         }
+
+        max_inundation_geojson = generate_realistic_flood_inundation_geojson(
+            active_river_coords,
+            scale_factor=scale_factor,
+            properties_template=base_props
+        )
 
         temporal_snapshots = []
         duration_hrs = params.simulation_duration_hours
@@ -95,33 +110,44 @@ class DemoHydraulicEngine(BaseSimulationEngine):
 
         for step in range(total_steps):
             time_min = int((step / (total_steps - 1)) * (duration_hrs * 60))
-            reached_idx = max(2, int((step / (total_steps - 1)) * len(river_coords)))
-            sub_coords = river_coords[:reached_idx]
-            sub_poly = generate_curved_inundation_polygon(sub_coords, scale_factor=scale_factor * ((step + 1) / total_steps))
+            reached_idx = max(2, int(((step + 1) / total_steps) * len(active_river_coords)))
+            sub_coords = active_river_coords[:reached_idx]
+            sub_scale = scale_factor * ((step + 1) / total_steps)
+
+            step_props = dict(base_props)
+            step_props.update({
+                "time_min": time_min,
+                "step": step,
+                "total_steps": total_steps,
+                "wave_front_km": round((reached_idx / len(active_river_coords)) * routing_res["total_reach_km"], 1),
+                "max_depth_m": round(min(13.0, ((step + 1) / total_steps) * 9.2 + 1.2), 2)
+            })
+
+            sub_geojson = generate_realistic_flood_inundation_geojson(
+                sub_coords,
+                scale_factor=sub_scale,
+                properties_template=step_props,
+                step=step,
+                total_steps=total_steps
+            )
 
             temporal_snapshots.append({
                 "timestep_min": time_min,
                 "formatted_time": f"{time_min // 60}h {time_min % 60:02d}m" if time_min >= 60 else f"{time_min} min",
-                "geojson": {
-                    "type": "FeatureCollection",
-                    "features": [{
-                        "type": "Feature",
-                        "properties": {
-                            "time_min": time_min,
-                            "wave_front_km": round(reached_idx * 7.0, 1),
-                            "max_depth_m": round(min(12.0, (step / total_steps) * 8.5 + 1.2), 2)
-                        },
-                        "geometry": {"type": "Polygon", "coordinates": [sub_poly]}
-                    }]
-                }
+                "geojson": sub_geojson
             })
 
         return {
             "max_inundation": max_inundation_geojson,
             "temporal_snapshots": temporal_snapshots,
             "peak_flow_cumecs": Q_peak,
-            "max_depth_m": round(min(14.5, 3.2 + Q_peak / 2500.0), 2),
-            "engine": "DEMO_HYDRAULIC"
+            "max_depth_m": round(min(15.5, 3.4 + Q_peak / 2300.0), 2),
+            "engine": "DEMO_HYDRAULIC",
+            "origin": routing_res["origin"],
+            "termination": routing_res["termination"],
+            "reach_profile": routing_res["reach_profile"],
+            "total_reach_km": routing_res["total_reach_km"],
+            "active_river_coords": active_river_coords
         }
 
     def postprocess(self, job_id: str, parsed_data: Dict[str, Any]) -> Dict[str, Any]:

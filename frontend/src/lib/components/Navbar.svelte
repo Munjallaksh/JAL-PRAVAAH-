@@ -1,6 +1,6 @@
 <script lang="ts">
   import { activeTab, type NavTab } from '../store';
-  import { Compass, Waves, Satellite, AlertTriangle, GitCompare } from 'lucide-svelte';
+  import { Compass, Waves, Satellite, AlertTriangle, GitCompare, Database } from 'lucide-svelte';
   import SearchBar from './SearchBar.svelte';
 
   const tabs: { id: NavTab; label: string; icon: any }[] = [
@@ -8,7 +8,8 @@
     { id: 'SIMULATE', label: 'SIMULATE', icon: Waves },
     { id: 'OBSERVE', label: 'OBSERVE', icon: Satellite },
     { id: 'IMPACT', label: 'IMPACT', icon: AlertTriangle },
-    { id: 'COMPARE', label: 'COMPARE', icon: GitCompare }
+    { id: 'COMPARE', label: 'COMPARE', icon: GitCompare },
+    { id: 'DATASOURCES', label: 'DATA SOURCES', icon: Database }
   ];
 </script>
 
