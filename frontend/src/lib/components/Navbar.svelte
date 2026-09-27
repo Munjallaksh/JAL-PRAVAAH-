@@ -1,6 +1,6 @@
 <script lang="ts">
   import { activeTab, type NavTab } from '../store';
-  import { ShieldAlert, Compass, Waves, Satellite, AlertTriangle, GitCompare } from 'lucide-svelte';
+  import { Compass, Waves, Satellite, AlertTriangle, GitCompare } from 'lucide-svelte';
   import SearchBar from './SearchBar.svelte';
 
   const tabs: { id: NavTab; label: string; icon: any }[] = [
@@ -15,8 +15,12 @@
 <header class="h-16 bg-command-900 border-b border-command-border px-4 flex items-center justify-between z-40 shrink-0 select-none gap-4">
   <!-- Brand / Title -->
   <div class="flex items-center gap-3 shrink-0">
-    <div class="p-2 bg-water-deep/20 rounded-lg border border-water/30 text-water-light">
-      <ShieldAlert class="w-5 h-5" />
+    <div class="w-10 h-10 rounded-xl overflow-hidden bg-white/95 p-0.5 border border-sky-400/40 shadow-lg shadow-sky-500/10 flex items-center justify-center shrink-0 group">
+      <img
+        src="/assets/jal-pravaah-logo.png"
+        alt="JAL PRAVAAH Logo"
+        class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+      />
     </div>
     <div class="hidden sm:block">
       <h1 class="text-sm font-extrabold text-slate-100 tracking-wider flex items-center gap-2">

@@ -13,53 +13,209 @@ def sanitize_geometry(geom):
             geom = geom.buffer(0)
     return geom
 
-def generate_curved_inundation_polygon(river_coords, scale_factor=1.0):
+def interpolate_smooth_river(coords, target_count=48):
+    """Interpolate river coordinates into a smooth Catmull-Rom spline path."""
+    if not coords or len(coords) < 3:
+        return coords or []
+    resampled = []
+    num_src = len(coords)
+    for i in range(target_count):
+        t = (i / max(1, target_count - 1)) * (num_src - 1)
+        idx = min(int(t), num_src - 2)
+        rem = t - idx
+        p0 = coords[max(0, idx - 1)]
+        p1 = coords[idx]
+        p2 = coords[min(num_src - 1, idx + 1)]
+        p3 = coords[min(num_src - 1, idx + 2)]
+        
+        lng = 0.5 * ((2*p1[0]) + (-p0[0] + p2[0])*rem + (2*p0[0] - 5*p1[0] + 4*p2[0] - p3[0])*(rem**2) + (-p0[0] + 3*p1[0] - 3*p2[0] + p3[0])*(rem**3))
+        lat = 0.5 * ((2*p1[1]) + (-p0[1] + p2[1])*rem + (2*p0[1] - 5*p1[1] + 4*p2[1] - p3[1])*(rem**2) + (-p0[1] + 3*p1[1] - 3*p2[1] + p3[1])*(rem**3))
+        resampled.append([round(lng, 5), round(lat, 5)])
+    return resampled
+
+DEPTH_ZONE_CONFIGS = [
+    {
+        "zone_id": "zone_fringe",
+        "depth_category": "0.1 - 0.5 m",
+        "min_depth_m": 0.1,
+        "max_depth_m": 0.5,
+        "width_ratio": 2.05,
+        "fill_color": "#93c5fd",
+        "fill_opacity": 0.48,
+        "roughness": 0.32
+    },
+    {
+        "zone_id": "zone_shallow",
+        "depth_category": "0.5 - 2 m",
+        "min_depth_m": 0.5,
+        "max_depth_m": 2.0,
+        "width_ratio": 1.45,
+        "fill_color": "#38bdf8",
+        "fill_opacity": 0.62,
+        "roughness": 0.22
+    },
+    {
+        "zone_id": "zone_moderate",
+        "depth_category": "2 - 5 m",
+        "min_depth_m": 2.0,
+        "max_depth_m": 5.0,
+        "width_ratio": 1.00,
+        "fill_color": "#2563eb",
+        "fill_opacity": 0.72,
+        "roughness": 0.14
+    },
+    {
+        "zone_id": "zone_deep",
+        "depth_category": "5 - 10 m",
+        "min_depth_m": 5.0,
+        "max_depth_m": 10.0,
+        "width_ratio": 0.65,
+        "fill_color": "#1d4ed8",
+        "fill_opacity": 0.82,
+        "roughness": 0.08
+    },
+    {
+        "zone_id": "zone_core",
+        "depth_category": "> 10 m",
+        "min_depth_m": 10.0,
+        "max_depth_m": 16.5,
+        "width_ratio": 0.36,
+        "fill_color": "#0a2558",
+        "fill_opacity": 0.92,
+        "roughness": 0.04
+    }
+]
+
+def generate_realistic_flood_inundation_geojson(river_coords, scale_factor=1.0, properties_template=None, step=None, total_steps=8):
     """
-    Generate realistic 2D flood inundation polygon following the exact 
-    geographic curvature of the river channel, perpendicular normal offsets, 
-    and topography-driven floodplain width expansion.
+    Generate realistic multi-tiered flood inundation GeoJSON with 5 contoured depth zones:
+    1. > 10 m (Core deep channel)
+    2. 5 - 10 m (Deep flood)
+    3. 2 - 5 m (Moderate flood)
+    4. 0.5 - 2 m (Shallow flood)
+    5. 0.1 - 0.5 m (Fringe inundation with natural dendritic valley fingers)
     """
     if not river_coords or len(river_coords) < 2:
-        return []
-    
-    num_pts = len(river_coords)
-    left_bank = []
-    right_bank = []
-    base_w = 0.0032 * min(3.2, max(0.7, scale_factor))
+        return {"type": "FeatureCollection", "features": []}
 
-    for i in range(num_pts):
-        pt = river_coords[i]
-        
-        # Calculate local stream tangent vector (dx, dy)
-        if i == 0:
-            dx = river_coords[1][0] - pt[0]
-            dy = river_coords[1][1] - pt[1]
-        elif i == num_pts - 1:
-            dx = pt[0] - river_coords[i-1][0]
-            dy = pt[1] - river_coords[i-1][1]
-        else:
-            dx = river_coords[i+1][0] - river_coords[i-1][0]
-            dy = river_coords[i+1][1] - river_coords[i-1][1]
-            
-        length = math.hypot(dx, dy)
-        if length == 0:
-            length = 1.0
-            
-        # Normal unit vector perpendicular to stream line
-        nx = -dy / length
-        ny = dx / length
-        
-        # Realistic valley topography factor: narrow in mountain gorges, expanding in downstream confluence basins
-        valley_factor = 0.95 + math.sin(i * 0.55) * 0.28 + ((i + 1) / num_pts) ** 1.6 * 2.2
-        w = base_w * valley_factor
-        
-        left_pt = [round(pt[0] + nx * w, 5), round(pt[1] + ny * w, 5)]
-        right_pt = [round(pt[0] - nx * w, 5), round(pt[1] - ny * w, 5)]
-        
-        left_bank.append(left_pt)
-        right_bank.append(right_pt)
+    props_base = properties_template or {}
+    job_id = props_base.get("scenario_id", "SCN-2026")
+    dam_name = props_base.get("dam_name", "Dam")
+    river_name = props_base.get("river_name", "River")
 
-    return left_bank + right_bank[::-1] + [left_bank[0]]
+    pts = interpolate_smooth_river(river_coords, target_count=max(24, len(river_coords) * 2))
+    num_pts = len(pts)
+
+    features = []
+
+    for z_idx, z_cfg in enumerate(DEPTH_ZONE_CONFIGS):
+        left_bank = []
+        right_bank = []
+
+        for i in range(num_pts):
+            pt = pts[i]
+            prog = i / max(1, num_pts - 1)
+
+            # Tangent & normal vectors
+            if i == 0:
+                dx = pts[1][0] - pt[0]
+                dy = pts[1][1] - pt[1]
+            elif i == num_pts - 1:
+                dx = pt[0] - pts[i-1][0]
+                dy = pt[1] - pts[i-1][1]
+            else:
+                dx = pts[i+1][0] - pts[i-1][0]
+                dy = pts[i+1][1] - pts[i-1][1]
+
+            length = math.hypot(dx, dy)
+            if length == 0:
+                length = 1.0
+            nx = -dy / length
+            ny = dx / length
+
+            # 1. Upper Reservoir dendritic basin (Dam location)
+            lake_expansion = 2.4 * max(0.0, 1.0 - prog / 0.18) ** 1.3
+
+            # 2. Confluence pooling basin (e.g. Devprayag / tributary junctions)
+            confluence_expansion = 2.1 * math.exp(-((prog - 0.38) / 0.055) ** 2)
+
+            # 3. Downstream alluvial plain expansion (Rishikesh to Haridwar plain)
+            plain_expansion = 2.8 * max(0.0, (prog - 0.60) / 0.40) ** 1.35
+
+            # 4. Dendritic valley harmonics (tributaries, side valleys, mountain fingers)
+            h1 = math.sin(i * 0.45) * 0.28
+            h2 = math.cos(i * 0.90 + 0.3) * 0.18
+            h3 = math.sin(i * 1.80) * 0.12
+
+            valley_mult = 1.0 + lake_expansion + confluence_expansion + plain_expansion + h1 + h2 + h3
+            base_half_w = 0.0072 * min(3.2, max(0.7, scale_factor)) * max(0.40, valley_mult)
+
+            # Asymmetric lateral expansion into tributary side gullies
+            w_ratio = z_cfg["width_ratio"]
+            roughness = z_cfg["roughness"]
+            rough_left = math.sin(i * 1.6 + z_idx * 0.8) * roughness
+            rough_right = math.cos(i * 1.4 + z_idx * 1.1) * roughness
+
+            w_left = base_half_w * w_ratio * max(0.2, 1.0 + rough_left)
+            w_right = base_half_w * w_ratio * max(0.2, 1.0 + rough_right)
+
+            left_pt = [round(pt[0] + nx * w_left, 5), round(pt[1] + ny * w_left, 5)]
+            right_pt = [round(pt[0] - nx * w_right, 5), round(pt[1] - ny * w_right, 5)]
+
+            left_bank.append(left_pt)
+            right_bank.append(right_pt)
+
+        raw_ring = left_bank + right_bank[::-1] + [left_bank[0]]
+        
+        # Sanitize polygon with Shapely
+        try:
+            poly_obj = Polygon(raw_ring)
+            if not poly_obj.is_valid:
+                poly_obj = make_valid(poly_obj)
+            if poly_obj.geom_type == 'MultiPolygon':
+                poly_obj = max(poly_obj.geoms, key=lambda p: p.area)
+            poly_coords = [list(pt) for pt in poly_obj.exterior.coords]
+        except Exception:
+            poly_coords = raw_ring
+
+        feature_props = dict(props_base)
+        feature_props.update({
+            "scenario_id": job_id,
+            "dam_name": dam_name,
+            "river_name": river_name,
+            "depth_zone": z_cfg["zone_id"],
+            "depth_category": z_cfg["depth_category"],
+            "min_depth_m": z_cfg["min_depth_m"],
+            "max_depth_m": z_cfg["max_depth_m"],
+            "fill_color": z_cfg["fill_color"],
+            "fill_opacity": z_cfg["fill_opacity"],
+            "wave_front_km": round((len(river_coords) / 16.0) * 105.4, 1)
+        })
+
+        features.append({
+            "type": "Feature",
+            "properties": feature_props,
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [poly_coords]
+            }
+        })
+
+    return {
+        "type": "FeatureCollection",
+        "name": f"Flood_Inundation_{job_id}",
+        "features": features
+    }
+
+def generate_curved_inundation_polygon(river_coords, scale_factor=1.0):
+    """
+    Generate realistic 2D flood inundation polygon envelope.
+    Returns the outer flood boundary coordinates ring.
+    """
+    tiered_geojson = generate_realistic_flood_inundation_geojson(river_coords, scale_factor=scale_factor)
+    if tiered_geojson.get("features"):
+        return tiered_geojson["features"][0]["geometry"]["coordinates"][0]
+    return []
 
 def perform_impact_analysis(flood_geojson, villages_geojson, infra_geojson):
     """
